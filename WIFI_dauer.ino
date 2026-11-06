@@ -44,13 +44,24 @@ void html(WiFiClient client){
         fsr.textContent = `Zeit: ${d.t} ms → Sensor1: ${d.v[0]}, Sensor2: ${d.v[1]}`;
       };
       setInterval(() => {
-        source.dispatchEvent(new MessageEvent("ping", { data: "keepalive" }));
+        fetch("/ping");
       }, 2000);
 
     </script>
   </body>
   </html>
   )rawliteral");
+}
+
+void handlePing(WiFiClient& client){
+  lastping = millis();
+  Serial.println("Ping erhalten " + String(now)+","+String(lastping));
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: text/plain");
+  client.println("Connection: close");
+  client.println();
+  client.println("pong");
+  client.stop();
 }
 
 void handleClient(WiFiClient client, String req){
@@ -70,8 +81,18 @@ void handleClient(WiFiClient client, String req){
       client.println("Connection: keep-alive");
       client.println();
 
-      bool streamStarted = false;
+      // flush() verwirft nichts: Rest-Header leeren, sonst liefert server.available() diesen Socket
+      while (client.available()) client.read();
+
+      lastping = millis();
       while (client.connected()) {
+        // loop() steht während des Streams, Pings müssen hier angenommen werden
+        WiFiClient incoming = server.available();
+        if (incoming && incoming.connected()) {
+          String pingReq = incoming.readStringUntil('\r');
+          if (pingReq.indexOf("GET /ping") >= 0) handlePing(incoming);
+        }
+
         now = millis();
         if (now - lastSample >= INTERVAL) {
           lastSample = now;
@@ -87,12 +108,6 @@ void handleClient(WiFiClient client, String req){
           client.println("]}");
           client.println();
 
-
-          if (!streamStarted) {
-            streamActive = true;
-            streamStarted = true;
-            lastping = millis();
-          }
           delay(10);
         }
         if (now >= lastping && now - lastping > CLIENT_TIMEOUT){
@@ -118,8 +133,13 @@ void handleClient(WiFiClient client, String req){
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);
-  WiFi.beginAP(ssid, pwd);
+  while (!Serial && millis() < 3000); // ohne USB (Akkubetrieb) nicht ewig warten
+
+  if (WiFi.beginAP(ssid, pwd) != WL_AP_LISTENING) {
+    Serial.println("AP-Start fehlgeschlagen!");
+    while (true);
+  }
+
   delay(3000);
   Serial.println("AP IP: ");
   Serial.println(WiFi.localIP());
@@ -134,14 +154,7 @@ void loop() {
     incoming.flush();
 
     if (req.indexOf("GET /ping") >= 0) {
-      lastping = millis();
-      Serial.println("Ping erhalten " + String(now)+","+String(lastping));
-      incoming.println("HTTP/1.1 200 OK");
-      incoming.println("Content-Type: text/plain");
-      incoming.println("Connection: close");
-      incoming.println();
-      incoming.println("pong");
-      incoming.stop();
+      handlePing(incoming);
       return;
     }
 
