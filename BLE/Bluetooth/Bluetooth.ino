@@ -18,7 +18,7 @@ BLECharacteristic      chOrientation("12345678-1234-5678-1234-56789abcdef1",
 BLECharacteristic      chPressure   ("12345678-1234-5678-1234-56789abcdef2",
                                      BLERead | BLENotify, 8);
 BLEByteCharacteristic  chControl    ("12345678-1234-5678-1234-56789abcdef3",
-                                     BLEWrite | BLEWriteWithoutResponse | BLERead);
+                                     BLEWrite | BLEWriteWithoutResponse | BLERead | BLENotify);
 BLECharacteristic      chFeatures   ("12345678-1234-5678-1234-56789abcdef4",
                                      BLERead | BLENotify, 16);
 BLECharacteristic      chPress4_u16("12345678-1234-5678-1234-56789abcdef5",
@@ -32,11 +32,9 @@ static inline uint32_t millis32() { return (uint32_t)millis(); }
 ICM_20948_I2C imu_shin;  // Schienbein
 ICM_20948_I2C imu_rist;  // Rist
 
-const uint8_t ADDR_IMU1 = 0x68; // shin
-const uint8_t ADDR_IMU2 = 0x69; // rist
+const bool AD0_IMU1 = false; // shin, 0x68
+const bool AD0_IMU2 = true;  // rist, 0x69
 
-static const float ACC_LSB_g     = 16384.0f;   // ±2g
-static const float GYRO_LSB_dps  = 131.072f;   // ±250 dps
 static const float G_CONST       = 9.80665f;   // m/s^2
 
 // ========== Montage-Offsets =====================
@@ -104,8 +102,8 @@ uint32_t readPeriodMs, sendPeriodMs, lastReadMs=0, sendAccumMs=0;
 float press_t = 0.0f;
 
 // ===================== Helpers =====================
-static bool initIMU(ICM_20948_I2C &imu, uint8_t addr) {
-  if (imu.begin(Wire, addr) != ICM_20948_Stat_Ok) return false;
+static bool initIMU(ICM_20948_I2C &imu, bool ad0val) {
+  if (imu.begin(Wire, ad0val) != ICM_20948_Stat_Ok) return false;
   // Optional: Full-Scale, DLPF etc. setzen (abhängig von Library-Version)
   return true;
 }
@@ -141,6 +139,7 @@ static void packFeatures(float edge_deg, float yaw_rate_dps, float a_lat, uint8_
 // ===================== Control =====================
 static void setStreaming(bool on) {
   streaming = on;
+  lastReadMs = millis(); // sonst holt der Lesetakt die gesamte Pause nach
   chControl.writeValue(on ? CMD_GO : CMD_STOP);  // Zustand zurückspiegeln
   Serial.println(on ? "CMD: GO" : "CMD: STOP");
 }
@@ -150,26 +149,26 @@ static void readOne(ICM_20948_I2C &imu, float accOff[3], float gyrOff[3], float 
 {
   if (imu.dataReady()) {
     imu.getAGMT();
-    ax = (float)imu.accX()/ACC_LSB_g - accOff[0]; // g
-    ay = (float)imu.accY()/ACC_LSB_g - accOff[1];
-    az = (float)imu.accZ()/ACC_LSB_g - accOff[2];
-    gx = (float)imu.gyrX()/GYRO_LSB_dps - gyrOff[0]; // dps
-    gy = (float)imu.gyrY()/GYRO_LSB_dps - gyrOff[1];
-    gz = (float)imu.gyrZ()/GYRO_LSB_dps - gyrOff[2];
+    ax = imu.accX()/1000.0f - accOff[0]; // g
+    ay = imu.accY()/1000.0f - accOff[1];
+    az = imu.accZ()/1000.0f - accOff[2];
+    gx = imu.gyrX() - gyrOff[0]; // dps
+    gy = imu.gyrY() - gyrOff[1];
+    gz = imu.gyrZ() - gyrOff[2];
   }
 }
 
 // ===================== Setup =====================
 void setup() {
   Serial.begin(115200);
-  while (!Serial) {}
+  while (!Serial && millis() < 3000) {} // ohne USB (Akkubetrieb) nicht ewig warten
 
   // I2C
   Wire.begin();
   Wire.setClock(400000);
 
   // IMUs
-  if (!initIMU(imu_shin, ADDR_IMU1) || !initIMU(imu_rist, ADDR_IMU2)) {
+  if (!initIMU(imu_shin, AD0_IMU1) || !initIMU(imu_rist, AD0_IMU2)) {
     Serial.println("IMU init failed (Adressen/Verkabelung prüfen).");
     while (1) delay(1000);
   }
@@ -262,8 +261,9 @@ void loop() {
         fsr[3] = fsr[1];
 
         // ----- Read IMUs -----
-        float axS,ayS,azS,gxS,gyS,gzS; // shin
-        float axR,ayR,azR,gxR,gyR,gzR; // rist
+        // static: readOne lässt die Werte unverändert, wenn keine neuen Daten da sind
+        static float axS=0,ayS=0,azS=0,gxS=0,gyS=0,gzS=0; // shin
+        static float axR=0,ayR=0,azR=0,gxR=0,gyR=0,gzR=0; // rist
         readOne(imu_shin, accOff_shin, gyrOff_shin, axS,ayS,azS,gxS,gyS,gzS);
         readOne(imu_rist, accOff_rist, gyrOff_rist, axR,ayR,azR,gxR,gyR,gzR);
 
