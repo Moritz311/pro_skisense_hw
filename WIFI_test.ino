@@ -3,7 +3,7 @@ WiFiServer server(80);
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);
+  while (!Serial && millis() < 3000); // ohne USB (Akkubetrieb) nicht ewig warten
 
   if (WiFi.beginAP("SkiSensor", "12345678") != WL_AP_LISTENING) {
     Serial.println("Fehler beim Starten des AP!");

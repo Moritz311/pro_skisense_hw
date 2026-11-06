@@ -33,7 +33,7 @@ unsigned long lastSample = 0;
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);
+  while (!Serial && millis() < 3000); // ohne USB (Akkubetrieb) nicht ewig warten
 
   if (WiFi.beginAP(ssid.c_str(), pwd.c_str()) != WL_AP_LISTENING) {
     Serial.println("AP-Start fehlgeschlagen!");
@@ -60,14 +60,16 @@ void loop() {
       startTime = millis();
       count = 0;
       dataSent = false;
-    } else if(request.indexOf("GET /data")>=0 && measuring){
+    } else if(request.indexOf("GET /data")>=0){ // auch nach Zeitablauf, sonst sind die Daten verloren
         Serial.println("Daten abgefragt");
         sendData(client);
         startTime = millis();
+        return;
     } else if (request.indexOf("GET /stop") >= 0 && measuring) {
       Serial.println("Manuell gestoppt → Messung beendet");
       sendData(client);
       measuring = false;
+      return;
     }
 
     // JSON-Antwort senden
@@ -75,7 +77,7 @@ void loop() {
     client.println("Content-Type: application/json");
     client.println("Access-Control-Allow-Origin: *");
     client.println();
-    client.println("OK");
+    client.println("{\"status\":\"OK\"}");
 
     client.stop();
   }
@@ -97,12 +99,14 @@ void loop() {
       WiFiClient sendClient = server.available(); // Versuch neuen Client zu erkennen
       if (sendClient && sendClient.connected()) {
         Serial.println("Client erkannt – Daten werden gesendet");
-        sendData(client);
+        sendData(sendClient);
         dataSent = true;
-      } else if (now - startTime >= TOTAL_DURATION) {
-        Serial.println("Zeit abgelaufen – keine Verbindung erkannt");
-        measuring = false;
       }
+    }
+
+    if (now - startTime >= TOTAL_DURATION) {
+      Serial.println("Zeit abgelaufen – Messung beendet");
+      measuring = false;
     }
   }
 }
