@@ -1,0 +1,199 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "id": "ble_bluetooth_skisensemath_eulerzyx_deg",
+      "label": "eulerZYX_deg()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 1,
+      "file_type": "code",
+      "norm_label": "eulerzyx_deg()",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L10"
+    },
+    {
+      "id": "ble_bluetooth_skisensemath_mul",
+      "label": "mul()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 1,
+      "file_type": "code",
+      "norm_label": "mul()",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L22"
+    },
+    {
+      "id": "ble_bluetooth_skisensemath_norm3",
+      "label": "norm3()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 2,
+      "file_type": "code",
+      "norm_label": "norm3()",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L31"
+    },
+    {
+      "id": "ble_bluetooth_skisensemath",
+      "label": "SkiSenseMath.h",
+      "_origin": "ast",
+      "community": 0,
+      "file_type": "code",
+      "norm_label": "skisensemath.h",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L1"
+    },
+    {
+      "id": "mat3",
+      "label": "Mat3",
+      "_origin": "ast",
+      "community": 1,
+      "file_type": "code",
+      "norm_label": "mat3",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "vec3",
+      "label": "Vec3",
+      "_origin": "ast",
+      "community": 2,
+      "file_type": "code",
+      "norm_label": "vec3",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "arduino",
+      "label": "arduino",
+      "community": 0,
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "arduino",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "math",
+      "label": "math",
+      "community": 0,
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "math",
+      "source_file": "",
+      "type": "external"
+    }
+  ],
+  "links": [
+    {
+      "source": "ble_bluetooth_skisensemath",
+      "target": "arduino",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "ble_bluetooth_skisensemath",
+      "target": "math",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "ble_bluetooth_skisensemath_mul",
+      "target": "mat3",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "parameter_type",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L22",
+      "weight": 1.0
+    },
+    {
+      "source": "ble_bluetooth_skisensemath_mul",
+      "target": "vec3",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "parameter_type",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L22",
+      "weight": 1.0
+    },
+    {
+      "source": "ble_bluetooth_skisensemath_norm3",
+      "target": "vec3",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "parameter_type",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
+      "source": "ble_bluetooth_skisensemath_eulerzyx_deg",
+      "target": "mat3",
+      "relation": "references",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "return_type",
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "ble_bluetooth_skisensemath",
+      "target": "ble_bluetooth_skisensemath_eulerzyx_deg",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "ble_bluetooth_skisensemath",
+      "target": "ble_bluetooth_skisensemath_mul",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L22",
+      "weight": 1.0
+    },
+    {
+      "source": "ble_bluetooth_skisensemath",
+      "target": "ble_bluetooth_skisensemath_norm3",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "BLE/Bluetooth/SkiSenseMath.h",
+      "source_location": "L31",
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [],
+  "built_at_commit": "325cbc87309b596c3f7608d3052b71840d826f8a"
+}
