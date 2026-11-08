@@ -3,6 +3,8 @@
 #include <ArduinoBLE.h>
 #include <ICM_20948.h>   // SparkFun ICM-20948 Library
 #include "SkiSenseMath.h"
+#include "CalibStore.h"
+#include <kvstore_global_api.h>   // mbed KVStore (TDBStore im Flash)
 
 // ===================== Geräte-/Service-Setup =====================
 const char* DEVICE_NAME = "SkiSense-RP2040";
@@ -161,6 +163,29 @@ static bool readOne(ICM_20948_I2C &imu, const float accOff[3], const float gyrOf
   return true;
 }
 
+// ===================== Offsets im Flash =====================
+static const char* CALIB_KEY = "/kv/skicalib";
+
+static void saveOffsets() {
+  CalibBlob b;
+  calibPack(b, accOff_shin, gyrOff_shin, accOff_rist, gyrOff_rist);
+  int r = kv_set(CALIB_KEY, &b, sizeof b, 0);
+  Serial.println(r == MBED_SUCCESS ? "Offsets gespeichert." : "Offsets speichern fehlgeschlagen (nur RAM).");
+}
+
+// Ungültig/leer -> Offsets bleiben 0
+static void loadOffsets() {
+  CalibBlob b, raw{};
+  size_t got = 0;
+  if (kv_get(CALIB_KEY, &raw, sizeof raw, &got) != MBED_SUCCESS || !calibUnpack(&raw, got, b)) {
+    Serial.println("Keine gueltigen Offsets im Flash, nutze 0.");
+    return;
+  }
+  memcpy(accOff_shin, b.accShin, 12); memcpy(gyrOff_shin, b.gyrShin, 12);
+  memcpy(accOff_rist, b.accRist, 12); memcpy(gyrOff_rist, b.gyrRist, 12);
+  Serial.println("Offsets aus Flash geladen.");
+}
+
 // ===================== Ruhekalibrierung =====================
 // Blockiert CALIB_MS, hält BLE per poll() am Leben. Gerät muss still liegen.
 static void calibrateAtRest() {
@@ -181,6 +206,7 @@ static void calibrateAtRest() {
     cS.offsets(accOff_shin, gyrOff_shin);
     cR.offsets(accOff_rist, gyrOff_rist);
     ori_shin = ori_rist = Orient{}; // mit altem Bias integrierte Lage verwerfen
+    saveOffsets();
   }
   chControl.writeValue(ok ? CMD_STOP : CALIB_FAILED);
   Serial.print(ok ? "CALIB ok, gyrOff shin/rist z: " : "CALIB fehlgeschlagen (bewegt?) n=");
@@ -203,6 +229,7 @@ void setup() {
     while (1) delay(1000);
   }
   Serial.println("IMUs bereit.");
+  loadOffsets();
 
   // Filter
   accF_shin.design(FS_READ_HZ, ACC_CUTOFF_HZ);
