@@ -22,13 +22,10 @@ id = "secrets-h-committed"
 description = "secrets.h darf nicht eingecheckt werden (nur secrets.example.h)"
 path = '''(^|/)secrets\.h$'''
 
-[[allowlists]]
-description = "Vorlage mit Platzhalter-Passwort"
-condition = "OR"
+# Legacy-Syntax, weil gitleaks-action@v2 noch gitleaks 8.24 nutzt ([[allowlists]] erst ab 8.25).
+[allowlist]
+description = "Vorlage mit Platzhalter-Passwort; bekanntes, verbranntes Passwort 12345678 in alten Commits (init, fix(wifi), graphify-Spiegel) und README-Beispiel der Regel"
 paths = ['''^WIFI/secrets\.example\.h$''']
-
-[[allowlists]]
-description = "Bekanntes, verbranntes Passwort 12345678 in der Historie (init, fix(wifi), graphify-Spiegel). Nicht mehr in Gebrauch, Passwort wurde getauscht."
 commits = [
   "785a0977b46a2accf12b6796b6f8f70927281fca", # init: pwd = "12345678"
   "e6e3d3903c5763a67ff0ffedee3b81b8e522fdfc", # fix(wifi): Entfernung (Diff-Zeilen mit altem Wert)
