@@ -33,4 +33,5 @@ commits = [
   "785a0977b46a2accf12b6796b6f8f70927281fca", # init: pwd = "12345678"
   "e6e3d3903c5763a67ff0ffedee3b81b8e522fdfc", # fix(wifi): Entfernung (Diff-Zeilen mit altem Wert)
   "f588948b4b19e4da11cd7c016a567ccbe696db50", # feat(graph): .cpp-Spiegel der alten .ino
+  "e74ebcaac290563ccc00c53c56f9341ff8b33b86", # ci(security): README-Beispiel der eigenen Regel (kein Secret)
 ]
