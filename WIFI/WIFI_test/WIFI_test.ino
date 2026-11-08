@@ -1,11 +1,12 @@
 #include <WiFiNINA.h>
+#include "secrets.h" // WIFI_SSID / WIFI_PASS, siehe WIFI/secrets.example.h
 WiFiServer server(80);
 
 void setup() {
   Serial.begin(9600);
   while (!Serial && millis() < 3000); // ohne USB (Akkubetrieb) nicht ewig warten
 
-  if (WiFi.beginAP("SkiSensor", "12345678") != WL_AP_LISTENING) {
+  if (WiFi.beginAP(WIFI_SSID, WIFI_PASS) != WL_AP_LISTENING) {
     Serial.println("Fehler beim Starten des AP!");
     while (true);
   }

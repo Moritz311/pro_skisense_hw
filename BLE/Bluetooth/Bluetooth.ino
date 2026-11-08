@@ -15,8 +15,6 @@ BLEService skiSenseService("12345678-1234-5678-1234-56789abcdef0");
 
 BLECharacteristic      chOrientation("12345678-1234-5678-1234-56789abcdef1",
                                      BLERead | BLENotify, 16);
-BLECharacteristic      chPressure   ("12345678-1234-5678-1234-56789abcdef2",
-                                     BLERead | BLENotify, 8);
 BLEByteCharacteristic  chControl    ("12345678-1234-5678-1234-56789abcdef3",
                                      BLEWrite | BLEWriteWithoutResponse | BLERead | BLENotify);
 BLECharacteristic      chFeatures   ("12345678-1234-5678-1234-56789abcdef4",
@@ -67,7 +65,7 @@ struct AxFilt {
   void design(float fs,float fc){x.designLPF(fs,fc);y.designLPF(fs,fc);z.designLPF(fs,fc);}
   void proc(float ix,float iy,float iz,float&ox,float&oy,float&oz){ox=x.step(ix);oy=y.step(iy);oz=z.step(iz);}
 };
-AxFilt accF_shin, gyrF_shin, accF_rist, gyrF_rist, accF_mix, gyrF_mix;
+AxFilt accF_shin, gyrF_shin, accF_rist, gyrF_rist;
 
 // ===================== Komplementärfilter je IMU =====================
 struct Orient { float roll=0, pitch=0, yaw=0; }; // deg
@@ -99,7 +97,6 @@ float gyrOff_shin[3] = {0,0,0}, gyrOff_rist[3]={0,0,0};
 // ===================== Laufzeit-Globals =====================
 Orient ori_shin, ori_rist;
 uint32_t readPeriodMs, sendPeriodMs, lastReadMs=0, sendAccumMs=0;
-float press_t = 0.0f;
 
 // ===================== Helpers =====================
 static bool initIMU(ICM_20948_I2C &imu, bool ad0val) {
@@ -114,11 +111,6 @@ static void packOrientation(float roll, float pitch, float yaw, uint8_t* buf) {
   memcpy(buf + 4,  &pitch, 4);
   memcpy(buf + 8,  &yaw,   4);
   memcpy(buf + 12, &ts,    4);
-}
-static void packPressure(float pressurePa, uint8_t* buf) {
-  uint32_t ts = millis32();
-  memcpy(buf + 0, &pressurePa, 4);
-  memcpy(buf + 4, &ts,         4);
 }
 static void packPress4_u16(const uint16_t p[4], uint8_t* buf) {
   uint32_t ts = millis32();
@@ -179,8 +171,6 @@ void setup() {
   gyrF_shin.design(FS_READ_HZ, GYR_CUTOFF_HZ);
   accF_rist.design(FS_READ_HZ, ACC_CUTOFF_HZ);
   gyrF_rist.design(FS_READ_HZ, GYR_CUTOFF_HZ);
-  accF_mix .design(FS_READ_HZ, ACC_CUTOFF_HZ);
-  gyrF_mix .design(FS_READ_HZ, GYR_CUTOFF_HZ);
 
   // Sensor->Boot Rotationen
   R_s2b_shin = eulerZYX_deg(SHIN_OFFS_YAW, SHIN_OFFS_PITCH, SHIN_OFFS_ROLL);
@@ -196,16 +186,14 @@ void setup() {
   BLE.setAdvertisedService(skiSenseService);
 
   skiSenseService.addCharacteristic(chOrientation);
-  skiSenseService.addCharacteristic(chPressure);
   skiSenseService.addCharacteristic(chControl);
   skiSenseService.addCharacteristic(chFeatures);
   skiSenseService.addCharacteristic(chPress4_u16);
   BLE.addService(skiSenseService);
 
   // Initialwerte
-  uint8_t z16[16]={0}; uint8_t z8[8]={0}; uint8_t z12[12]={0};
+  uint8_t z16[16]={0}; uint8_t z12[12]={0};
   chOrientation.writeValue(z16,16);
-  chPressure.writeValue(z8,8);
   chFeatures.writeValue(z16,16);
   chPress4_u16.writeValue(z12,12);
   setStreaming(false); // schreibt 0x00 in chControl
