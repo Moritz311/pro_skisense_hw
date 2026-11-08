@@ -24,6 +24,19 @@ BLECharacteristic      chFeatures   ("12345678-1234-5678-1234-56789abcdef4",
 BLECharacteristic      chPress4_u16("12345678-1234-5678-1234-56789abcdef5",
                                      BLERead | BLENotify, 12);
 
+// Standard Battery Service. Der Nano RP2040 Connect kann die Akkuspannung nicht selbst messen
+// (A0–A3 = FSR, A4/A5 = I²C, A6/A7 nur über NINA/WiFiNINA, im BLE-Betrieb nicht nutzbar).
+// Vorgesehen ist ein MAX17048-Fuel-Gauge am I²C-Bus; ohne ihn bleibt der Service weg,
+// damit die App keinen erfundenen Wert anzeigt.
+BLEService            batteryService("180F");
+BLEByteCharacteristic chBatteryLevel("2A19", BLERead | BLENotify);
+static const uint8_t  MAX17048_ADDR   = 0x36;
+static const uint32_t BATT_PERIOD_MS  = 30000;
+bool hasFuelGauge = false;
+
+static const uint16_t ADV_INTERVAL    = 668; // ×0,625 ms = 417,5 ms (Apple-Empfehlung), Default 100 ms
+static const uint32_t IDLE_POLL_MS    = 10;  // ohne Streaming: CPU zwischen BLE-Polls schlafen lassen
+
 volatile bool streaming = false;
 
 static inline uint32_t millis32() { return (uint32_t)millis(); }
@@ -136,9 +149,31 @@ static void packFeatures(float edge_deg, float yaw_rate_dps, float a_lat, uint8_
   memcpy(buf + 12, &ts,           4);
 }
 
+// ===================== Akku =====================
+// SOC-Register 0x04: MSB = ganze Prozent. -1 = Gauge antwortet nicht.
+static int readBatteryPercent() {
+  Wire.beginTransmission(MAX17048_ADDR);
+  Wire.write(0x04);
+  if (Wire.endTransmission(false) != 0) return -1;
+  if (Wire.requestFrom(MAX17048_ADDR, (uint8_t)2) != 2) return -1;
+  int pct = Wire.read(); Wire.read();
+  return min(pct, 100); // Gauge meldet bei vollem Akku teils knapp über 100 %
+}
+
+static void updateBattery() {
+  static uint32_t lastMs = 0;
+  if (!hasFuelGauge || millis() - lastMs < BATT_PERIOD_MS) return;
+  lastMs = millis();
+  int pct = readBatteryPercent();
+  if (pct >= 0 && pct != chBatteryLevel.value()) chBatteryLevel.writeValue((uint8_t)pct);
+}
+
 // ===================== Control =====================
 static void setStreaming(bool on) {
   streaming = on;
+  // IMUs nur beim Streaming wach (~3 mA -> ~8 µA je Sensor im Sleep)
+  imu_shin.sleep(!on);
+  imu_rist.sleep(!on);
   lastReadMs = millis(); // sonst holt der Lesetakt die gesamte Pause nach
   chControl.writeValue(on ? CMD_GO : CMD_STOP);  // Zustand zurückspiegeln
   Serial.println(on ? "CMD: GO" : "CMD: STOP");
@@ -202,14 +237,24 @@ void setup() {
   skiSenseService.addCharacteristic(chPress4_u16);
   BLE.addService(skiSenseService);
 
+  int pct = readBatteryPercent();
+  hasFuelGauge = pct >= 0;
+  if (hasFuelGauge) {
+    batteryService.addCharacteristic(chBatteryLevel);
+    BLE.addService(batteryService);
+    chBatteryLevel.writeValue((uint8_t)pct);
+  }
+  Serial.println(hasFuelGauge ? "Fuel-Gauge gefunden." : "Kein Fuel-Gauge, Battery Service aus.");
+
   // Initialwerte
   uint8_t z16[16]={0}; uint8_t z8[8]={0}; uint8_t z12[12]={0};
   chOrientation.writeValue(z16,16);
   chPressure.writeValue(z8,8);
   chFeatures.writeValue(z16,16);
   chPress4_u16.writeValue(z12,12);
-  setStreaming(false); // schreibt 0x00 in chControl
+  setStreaming(false); // schreibt 0x00 in chControl, legt IMUs schlafen
 
+  BLE.setAdvertisingInterval(ADV_INTERVAL);
   BLE.advertise();
   Serial.println("BLE advertising als SkiSense-TEST ...");
 
@@ -221,7 +266,8 @@ void setup() {
 // ===================== Loop =====================
 void loop() {
   BLEDevice central = BLE.central();
-  if (!central) { BLE.poll(); return; }
+  updateBattery();
+  if (!central) { BLE.poll(); delay(IDLE_POLL_MS); return; }
 
   Serial.print("Verbunden mit: ");
   Serial.println(central.address());
@@ -348,7 +394,9 @@ void loop() {
       }
     }
 
+    updateBattery();
     BLE.poll();
+    if (!streaming) delay(IDLE_POLL_MS);
   }
 
   Serial.println("Verbindung getrennt.");
