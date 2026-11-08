@@ -58,21 +58,6 @@ Falls das Board nicht auftaucht: Reset-Taste zweimal kurz drücken (Bootloader-M
 
 ## BLE-Protokoll
 
-Gerätename `SkiSense-RP2040`, advertised als `SkiSense-TEST`.
-Service `12345678-1234-5678-1234-56789abcdef0`. Alle Werte sind Little Endian, `ts` = `millis()` des Boards (uint32, ms).
+Service `12345678-1234-5678-1234-56789abcdef0`, Gerät `SkiSense-TEST`. Little Endian, Orientation/Features/Press4 mit 100 Hz, Streaming per Control-Befehl `0x01` starten, `0x00` stoppen.
 
-| UUID-Endung | Name | Eigenschaften | Inhalt |
-|---|---|---|---|
-| `…def1` | Orientation | Read, Notify | 16 B: `float roll`, `float pitch`, `float yaw` (°), `u32 ts`. Roll/Yaw vom Rist, Pitch vom Schienbein (geglättet) |
-| `…def3` | Control | Write, WriteWithoutResponse, Read, Notify | 1 B Befehl, siehe unten |
-| `…def4` | Features | Read, Notify | 16 B: `float edge_deg` (Kantenwinkel), `float yaw_rate` (°/s), `float a_lat` (m/s²), `u32 ts` |
-| `…def5` | Press4 | Read, Notify | 12 B: `u16 fsr[4]` (Roh-ADC, 10 Bit), `u32 ts`. FSR 3/4 sind derzeit Kopien von FSR 1/2 |
-
-Control-Befehle:
-
-| Wert | Bedeutung |
-|---|---|
-| `0x00` | Stop |
-| `0x01` | Go (Streaming starten) |
-
-Die Firmware spiegelt den aktuellen Zustand (`0x00`/`0x01`) per Notify auf Control zurück, auch bei unbekannten Befehlen. Intern werden die IMUs mit 200 Hz gelesen, die Notifies gehen mit 100 Hz raus. Beim Trennen der Verbindung stoppt das Streaming.
+Vollständige Beschreibung (UUIDs, Paketformate, Einheiten, Abtastrate): [docs/BLE_PROTOCOL.md](docs/BLE_PROTOCOL.md)
