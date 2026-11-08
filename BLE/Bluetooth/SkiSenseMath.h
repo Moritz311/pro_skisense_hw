@@ -31,3 +31,39 @@ static inline Vec3 mul(const Mat3& R, const Vec3& v) {
 static inline float norm3(const Vec3& v) {
   return sqrtf(v.x*v.x + v.y*v.y + v.z*v.z);
 }
+
+// ---- Ruhekalibrierung: Mittelwert/Streuung roher Samples (acc in g, gyr in dps) ----
+struct RestCalib {
+  double sum[6] = {0}, sq[6] = {0};
+  uint32_t n = 0;
+
+  void add(float ax, float ay, float az, float gx, float gy, float gz) {
+    const float v[6] = {ax, ay, az, gx, gy, gz};
+    for (int i = 0; i < 6; i++) { sum[i] += v[i]; sq[i] += (double)v[i] * v[i]; }
+    n++;
+  }
+  float mean(int i) const { return (float)(sum[i] / n); }
+  float stddev(int i) const {
+    double m = sum[i] / n, var = sq[i] / n - m * m;
+    return var > 0 ? (float)sqrt(var) : 0.0f;
+  }
+
+  // Bewegt oder nicht ~1 g -> Ergebnis unbrauchbar
+  bool ok() const {
+    if (n < 100) return false;
+    float g = norm3({mean(0), mean(1), mean(2)});
+    if (g < 0.9f || g > 1.1f) return false;
+    for (int i = 0; i < 3; i++)
+      if (stddev(i) > 0.05f || stddev(3 + i) > 1.0f) return false;
+    return true;
+  }
+
+  // Gyro-Bias = Mittelwert. Accel: aus einer Lage ist nur der Betragsfehler entlang
+  // der Schwerkraft bestimmbar; die Richtung (Neigung) bleibt erhalten, |a| wird 1 g.
+  void offsets(float accOff[3], float gyrOff[3]) const {
+    Vec3 a = {mean(0), mean(1), mean(2)};
+    float k = 1.0f - 1.0f / norm3(a);
+    accOff[0] = a.x * k; accOff[1] = a.y * k; accOff[2] = a.z * k;
+    for (int i = 0; i < 3; i++) gyrOff[i] = mean(3 + i);
+  }
+};
