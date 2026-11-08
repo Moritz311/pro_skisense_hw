@@ -3,6 +3,8 @@
 #include <ArduinoBLE.h>
 #include <ICM_20948.h>   // SparkFun ICM-20948 Library
 #include "SkiSenseMath.h"
+#include "CalibStore.h"
+#include <kvstore_global_api.h>   // mbed KVStore (TDBStore im Flash)
 
 // ===================== Geräte-/Service-Setup =====================
 const char* DEVICE_NAME = "SkiSense-RP2040";
@@ -10,6 +12,9 @@ const char* LOCAL_NAME  = "SkiSense-TEST";
 
 static const uint8_t CMD_STOP = 0x00;
 static const uint8_t CMD_GO   = 0x01;
+static const uint8_t CMD_CALIB = 0x02;       // Ruhekalibrierung; läuft solange chControl 0x02 zeigt
+static const uint8_t CALIB_FAILED = 0xE2;    // Rückmeldung: bewegt/kein 1 g, Offsets unverändert
+static const uint32_t CALIB_MS = 2000;
 
 BLEService skiSenseService("12345678-1234-5678-1234-56789abcdef0");
 
@@ -145,17 +150,68 @@ static void setStreaming(bool on) {
 }
 
 // ===================== IMU-Read =====================
-static void readOne(ICM_20948_I2C &imu, float accOff[3], float gyrOff[3], float &ax, float &ay, float &az, float &gx, float &gy, float &gz)
+static bool readOne(ICM_20948_I2C &imu, const float accOff[3], const float gyrOff[3], float &ax, float &ay, float &az, float &gx, float &gy, float &gz)
 {
-  if (imu.dataReady()) {
-    imu.getAGMT();
-    ax = imu.accX()/1000.0f - accOff[0]; // g
-    ay = imu.accY()/1000.0f - accOff[1];
-    az = imu.accZ()/1000.0f - accOff[2];
-    gx = imu.gyrX() - gyrOff[0]; // dps
-    gy = imu.gyrY() - gyrOff[1];
-    gz = imu.gyrZ() - gyrOff[2];
+  if (!imu.dataReady()) return false;
+  imu.getAGMT();
+  ax = imu.accX()/1000.0f - accOff[0]; // g
+  ay = imu.accY()/1000.0f - accOff[1];
+  az = imu.accZ()/1000.0f - accOff[2];
+  gx = imu.gyrX() - gyrOff[0]; // dps
+  gy = imu.gyrY() - gyrOff[1];
+  gz = imu.gyrZ() - gyrOff[2];
+  return true;
+}
+
+// ===================== Offsets im Flash =====================
+static const char* CALIB_KEY = "/kv/skicalib";
+
+static void saveOffsets() {
+  CalibBlob b;
+  calibPack(b, accOff_shin, gyrOff_shin, accOff_rist, gyrOff_rist);
+  int r = kv_set(CALIB_KEY, &b, sizeof b, 0);
+  Serial.println(r == MBED_SUCCESS ? "Offsets gespeichert." : "Offsets speichern fehlgeschlagen (nur RAM).");
+}
+
+// Ungültig/leer -> Offsets bleiben 0
+static void loadOffsets() {
+  CalibBlob b, raw{};
+  size_t got = 0;
+  if (kv_get(CALIB_KEY, &raw, sizeof raw, &got) != MBED_SUCCESS || !calibUnpack(&raw, got, b)) {
+    Serial.println("Keine gueltigen Offsets im Flash, nutze 0.");
+    return;
   }
+  memcpy(accOff_shin, b.accShin, 12); memcpy(gyrOff_shin, b.gyrShin, 12);
+  memcpy(accOff_rist, b.accRist, 12); memcpy(gyrOff_rist, b.gyrRist, 12);
+  Serial.println("Offsets aus Flash geladen.");
+}
+
+// ===================== Ruhekalibrierung =====================
+// Blockiert CALIB_MS, hält BLE per poll() am Leben. Gerät muss still liegen.
+static void calibrateAtRest() {
+  chControl.writeValue(CMD_CALIB);
+  Serial.println("CMD: CALIB");
+  static const float ZERO[3] = {0,0,0};
+  RestCalib cS, cR;
+  float ax,ay,az,gx,gy,gz;
+  uint32_t t0 = millis();
+  while (millis() - t0 < CALIB_MS) {
+    if (readOne(imu_shin, ZERO, ZERO, ax,ay,az,gx,gy,gz)) cS.add(ax,ay,az,gx,gy,gz);
+    if (readOne(imu_rist, ZERO, ZERO, ax,ay,az,gx,gy,gz)) cR.add(ax,ay,az,gx,gy,gz);
+    BLE.poll();
+    delay(readPeriodMs);
+  }
+  bool ok = cS.ok() && cR.ok(); // beide oder keiner, sonst gemischter Zustand
+  if (ok) {
+    cS.offsets(accOff_shin, gyrOff_shin);
+    cR.offsets(accOff_rist, gyrOff_rist);
+    ori_shin = ori_rist = Orient{}; // mit altem Bias integrierte Lage verwerfen
+    saveOffsets();
+  }
+  chControl.writeValue(ok ? CMD_STOP : CALIB_FAILED);
+  Serial.print(ok ? "CALIB ok, gyrOff shin/rist z: " : "CALIB fehlgeschlagen (bewegt?) n=");
+  if (ok) { Serial.print(gyrOff_shin[2]); Serial.print(" / "); Serial.println(gyrOff_rist[2]); }
+  else    { Serial.print(cS.n); Serial.print("/"); Serial.println(cR.n); }
 }
 
 // ===================== Setup =====================
@@ -173,6 +229,7 @@ void setup() {
     while (1) delay(1000);
   }
   Serial.println("IMUs bereit.");
+  loadOffsets();
 
   // Filter
   accF_shin.design(FS_READ_HZ, ACC_CUTOFF_HZ);
@@ -237,6 +294,13 @@ void loop() {
         if (!streaming) setStreaming(true);
       } else if (cmd == CMD_STOP) {
         if (streaming) setStreaming(false);
+      } else if (cmd == CMD_CALIB) {
+        if (streaming) {
+          chControl.writeValue(CMD_GO); // Messung läuft: abgelehnt, Zustand zurückspiegeln
+          Serial.println("CALIB abgelehnt: Messung läuft");
+        } else {
+          calibrateAtRest();
+        }
       } else {
         chControl.writeValue(streaming ? CMD_GO : CMD_STOP);
         Serial.print("Unbekannter CMD: 0x");
