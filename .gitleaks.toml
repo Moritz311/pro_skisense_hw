@@ -1,0 +1,36 @@
+title = "SkiSense gitleaks"
+
+[extend]
+useDefault = true
+
+# Klartext-WLAN-Passwoerter, wie sie vor fix/wifi-secrets im Code standen.
+[[rules]]
+id = "wifi-pass-define"
+description = "WIFI_PASS als Klartext-Literal (gehoert in secrets.h, die nicht eingecheckt wird)"
+regex = '''(?i)\bWIFI_PASS(?:WORD)?\b\s*=?\s*"[^"]+"'''
+keywords = ["wifi_pass"]
+
+[[rules]]
+id = "wifi-pwd-literal"
+description = "Passwort-Variable mit Klartext-Literal"
+regex = '''(?i)\b(?:pwd|passwd|password)\s*=\s*"[^"]{4,}"'''
+keywords = ["pwd", "passwd", "password"]
+
+# Eine eingecheckte secrets.h ist immer ein Fund, unabhaengig vom Inhalt.
+[[rules]]
+id = "secrets-h-committed"
+description = "secrets.h darf nicht eingecheckt werden (nur secrets.example.h)"
+path = '''(^|/)secrets\.h$'''
+
+[[allowlists]]
+description = "Vorlage mit Platzhalter-Passwort"
+condition = "OR"
+paths = ['''^WIFI/secrets\.example\.h$''']
+
+[[allowlists]]
+description = "Bekanntes, verbranntes Passwort 12345678 in der Historie (init, fix(wifi), graphify-Spiegel). Nicht mehr in Gebrauch, Passwort wurde getauscht."
+commits = [
+  "785a0977b46a2accf12b6796b6f8f70927281fca", # init: pwd = "12345678"
+  "e6e3d3903c5763a67ff0ffedee3b81b8e522fdfc", # fix(wifi): Entfernung (Diff-Zeilen mit altem Wert)
+  "f588948b4b19e4da11cd7c016a567ccbe696db50", # feat(graph): .cpp-Spiegel der alten .ino
+]
