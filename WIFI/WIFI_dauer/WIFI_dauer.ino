@@ -1,8 +1,9 @@
 #include <WiFiNINA.h>
+#include "secrets.h" // WIFI_SSID / WIFI_PASS, siehe WIFI/secrets.example.h
 
 WiFiServer server(80);
-const char* ssid = "SkiSensor";
-const char* pwd  = "12345678";
+const char* ssid = WIFI_SSID;
+const char* pwd  = WIFI_PASS;
 
 const int fsr1 = A0;
 const int fsr2 = A1;

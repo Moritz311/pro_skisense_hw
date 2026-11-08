@@ -1,0 +1,4 @@
+# WLAN-Zugangsdaten, Vorlage: WIFI/secrets.example.h
+secrets.h
+# arduino-cli --output-dir / Host-Testbinaries
+build/
