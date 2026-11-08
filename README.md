@@ -46,6 +46,15 @@ for s in WIFI/WIFI_*/; do cp WIFI/secrets.example.h "$s/secrets.h"; done
 
 > Das frühere Passwort `12345678` steht noch in der Git-Historie und gilt als verbrannt. Nicht wiederverwenden.
 
+## Secret-Scan
+
+Bei jedem Push und Pull Request läuft [gitleaks](https://github.com/gitleaks/gitleaks) (`.github/workflows/gitleaks.yml`) über die gesamte Historie. `.gitleaks.toml` erweitert die Standardregeln um:
+
+- `WIFI_PASS`-Defines und `pwd`-Variablen mit Klartext-Literal
+- jede eingecheckte `secrets.h`
+
+Erlaubt ist nur die Vorlage `WIFI/secrets.example.h`. Das verbrannte Passwort `12345678` steht in drei alten Commits und ist dort per `commits`-Allowlist in `.gitleaks.toml` dokumentiert ausgenommen. Lokal prüfen: `gitleaks git -c .gitleaks.toml .`
+
 ## Kompilieren & Flashen
 
 ```sh

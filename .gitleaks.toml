@@ -1,0 +1,34 @@
+title = "SkiSense gitleaks"
+
+[extend]
+useDefault = true
+
+# Klartext-WLAN-Passwoerter, wie sie vor fix/wifi-secrets im Code standen.
+[[rules]]
+id = "wifi-pass-define"
+description = "WIFI_PASS als Klartext-Literal (gehoert in secrets.h, die nicht eingecheckt wird)"
+regex = '''(?i)\bWIFI_PASS(?:WORD)?\b\s*=?\s*"[^"]+"'''
+keywords = ["wifi_pass"]
+
+[[rules]]
+id = "wifi-pwd-literal"
+description = "Passwort-Variable mit Klartext-Literal"
+regex = '''(?i)\b(?:pwd|passwd|password)\s*=\s*"[^"]{4,}"'''
+keywords = ["pwd", "passwd", "password"]
+
+# Eine eingecheckte secrets.h ist immer ein Fund, unabhaengig vom Inhalt.
+[[rules]]
+id = "secrets-h-committed"
+description = "secrets.h darf nicht eingecheckt werden (nur secrets.example.h)"
+path = '''(^|/)secrets\.h$'''
+
+# Legacy-Syntax, weil gitleaks-action@v2 noch gitleaks 8.24 nutzt ([[allowlists]] erst ab 8.25).
+[allowlist]
+description = "Vorlage mit Platzhalter-Passwort; bekanntes, verbranntes Passwort 12345678 in alten Commits (init, fix(wifi), graphify-Spiegel) und README-Beispiel der Regel"
+paths = ['''^WIFI/secrets\.example\.h$''']
+commits = [
+  "785a0977b46a2accf12b6796b6f8f70927281fca", # init: pwd = "12345678"
+  "e6e3d3903c5763a67ff0ffedee3b81b8e522fdfc", # fix(wifi): Entfernung (Diff-Zeilen mit altem Wert)
+  "f588948b4b19e4da11cd7c016a567ccbe696db50", # feat(graph): .cpp-Spiegel der alten .ino
+  "e74ebcaac290563ccc00c53c56f9341ff8b33b86", # ci(security): README-Beispiel der eigenen Regel (kein Secret)
+]
